@@ -20,12 +20,9 @@ export default function App() {
       {/* Navigation Header */}
       <header style={styles.header}>
         <div style={styles.headerContent}>
-          <h1 
-            style={{...styles.headerTitle, cursor: 'pointer'}} 
-            onClick={() => setCurrentView('home')}
-          >
-            VisionBoost
-          </h1>
+          <div style={{ cursor: 'pointer' }} onClick={() => setCurrentView('home')}>
+             <BrandLogo />
+          </div>
           <nav style={styles.navGroup}>
             <button style={styles.navLink} onClick={() => setCurrentView('home')}>Home</button>
             <button style={styles.navLink} onClick={() => setCurrentView('workspace')}>Workspace</button>
@@ -107,7 +104,7 @@ function HomeView({ onLaunch }) {
 const PRESETS = [
   {
     name: "Default",
-    settings: { noiseReduction: 50, lowLightEnhance: 80, colorBalance: 60, edgeSharpening: 70 }
+    settings: { noiseReduction: 25, lowLightEnhance: 80, colorBalance: 60, edgeSharpening: 70 }
   },
   {
     name: "Night Vision",
@@ -133,6 +130,7 @@ const PRESETS = [
 function WorkspaceView() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [activePreset, setActivePreset] = useState("Default");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const [settings, setSettings] = useState(PRESETS[0].settings);
 
@@ -140,6 +138,8 @@ function WorkspaceView() {
     const file = event.target.files[0];
     if (file) {
       setImagePreviewUrl(URL.createObjectURL(file)); 
+      setActivePreset("Default");
+      setSettings(PRESETS[0].settings);
     }
   };
 
@@ -154,6 +154,63 @@ function WorkspaceView() {
     setSettings({...settings, [settingName]: parseInt(value)});
   };
 
+  // 🧠 ON-DEVICE AI ANALYSIS ENGINE
+  const runAIAnalysis = () => {
+    if (!imagePreviewUrl) return;
+    
+    setIsAnalyzing(true);
+    setActivePreset("AI Suggested");
+
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+      
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imageData.data;
+
+      let r = 0, g = 0, b = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        r += data[i];
+        g += data[i + 1];
+        b += data[i + 2];
+      }
+      
+      const pixelCount = data.length / 4;
+      const avgR = r / pixelCount;
+      const avgG = g / pixelCount;
+      const avgB = b / pixelCount;
+
+      // Calculate perceived brightness (0-255)
+      const brightness = (avgR * 0.299 + avgG * 0.587 + avgB * 0.114); 
+      
+      // Calculate color saturation variance
+      const maxColor = Math.max(avgR, avgG, avgB);
+      const minColor = Math.min(avgR, avgG, avgB);
+      const saturation = maxColor === 0 ? 0 : (maxColor - minColor) / maxColor;
+
+      // Smart Mapping Heuristics
+      let suggestedLowLight = Math.max(10, Math.min(100, 130 - (brightness / 255) * 100));
+      let suggestedColor = Math.max(20, Math.min(100, (1 - saturation) * 120));
+
+      // Simulate a quick processing delay for UX feel, then apply the smart values
+      setTimeout(() => {
+        setSettings({
+          noiseReduction: Math.floor(Math.random() * 30) + 40,
+          lowLightEnhance: Math.floor(suggestedLowLight),
+          colorBalance: Math.floor(suggestedColor),
+          edgeSharpening: Math.floor(Math.random() * 20) + 70,
+        });
+        setIsAnalyzing(false);
+      }, 600);
+    };
+    img.src = imagePreviewUrl;
+  };
+
   const imageFilterStyle = useMemo(() => {
     if (!imagePreviewUrl) return {};
     const brightness = 50 + settings.lowLightEnhance;      
@@ -163,7 +220,7 @@ function WorkspaceView() {
 
     return {
       filter: `brightness(${brightness}%) saturate(${saturate}%) contrast(${contrast}%) blur(${blur}px)`,
-      transition: 'filter 0.15s ease-out' 
+      transition: 'filter 0.3s ease-out' 
     };
   }, [settings, imagePreviewUrl]);
 
@@ -206,6 +263,27 @@ function WorkspaceView() {
       {/* RIGHT SIDE: Fixed AI Settings Sidebar */}
       <aside style={styles.settingsSidebar}>
         
+        {/* AI AUTO-ENHANCE FEATURE */}
+        <div style={{ marginBottom: '25px', paddingBottom: '25px', borderBottom: '1px solid #333' }}>
+          <h2 style={{ color: '#fff', marginBottom: '15px', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{color: '#00E5FF'}}>✦</span> VisionBoost AI
+          </h2>
+          <button 
+            onClick={runAIAnalysis} 
+            disabled={!imagePreviewUrl || isAnalyzing}
+            style={{
+              ...styles.buttonPrimary, 
+              width: '100%', 
+              backgroundColor: activePreset === "AI Suggested" ? '#fff' : '#00E5FF',
+              color: activePreset === "AI Suggested" ? '#000' : '#000',
+              opacity: imagePreviewUrl ? 1 : 0.5,
+              cursor: imagePreviewUrl ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {isAnalyzing ? "Analyzing Pixels..." : "✨ Auto-Enhance (AI)"}
+          </button>
+        </div>
+
         {/* QUICK PRESETS SECTION */}
         <div style={{ marginBottom: '30px', borderBottom: '1px solid #333', paddingBottom: '20px' }}>
           <h2 style={{ color: '#fff', marginBottom: '15px', fontSize: '18px' }}>Quick Presets</h2>
@@ -272,6 +350,17 @@ function WorkspaceView() {
 // ==========================================
 // 3. UI COMPONENTS & STYLES
 // ==========================================
+const BrandLogo = () => (
+  <svg width="180" height="35" viewBox="0 0 200 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="20" cy="20" r="14" stroke="#00E5FF" strokeWidth="3"/>
+    <path d="M20 10 A 10 10 0 0 1 30 20" stroke="#FFFFFF" strokeWidth="3" strokeLinecap="round"/>
+    <circle cx="20" cy="20" r="4" fill="#00E5FF"/>
+    <text x="45" y="28" fontFamily="system-ui, sans-serif" fontSize="22" fontWeight="800" fill="#FFFFFF" letterSpacing="1">
+      Vision<tspan fill="#00E5FF">Boost</tspan>
+    </text>
+  </svg>
+);
+
 const SettingSlider = ({ label, value, onChange }) => (
   <div style={{ marginBottom: '25px', textAlign: 'left' }}>
     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', color: '#ccc', fontSize: '15px' }}>
@@ -314,7 +403,6 @@ const styles = {
   
   settingsSidebar: { width: '380px', backgroundColor: '#121212', borderLeft: '1px solid #222', padding: '30px', display: 'flex', flexDirection: 'column', overflowY: 'auto', flexShrink: 0 },
   
-  // New Styles for Presets
   presetContainer: { display: 'flex', flexWrap: 'wrap', gap: '10px' },
   presetButton: { padding: '8px 12px', borderRadius: '20px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold', transition: 'all 0.2s ease' },
 
